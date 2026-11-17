@@ -1,0 +1,52 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on tags like v0.1.0
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CINELIB_UPLOAD_STORE_FILE }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/cinelib-release.keystore
+
+      - name: Build Release APK
+        env:
+          CINELIB_UPLOAD_STORE_FILE: cinelib-release.keystore
+          CINELIB_UPLOAD_STORE_PASSWORD: ${{ secrets.CINELIB_UPLOAD_STORE_PASSWORD }}
+          CINELIB_UPLOAD_KEY_ALIAS: ${{ secrets.CINELIB_UPLOAD_KEY_ALIAS }}
+          CINELIB_UPLOAD_KEY_PASSWORD: ${{ secrets.CINELIB_UPLOAD_KEY_PASSWORD }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
